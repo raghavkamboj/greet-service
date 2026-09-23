@@ -1,10 +1,13 @@
 pipeline {
   agent any
   tools { maven 'Maven3' }
+
   environment {
     APP_NAME    = 'greet-service'
     IMAGE_NAME  = 'greet-service'
+    REGISTRY    = 'localhost:5001'
     DOCKER_HOST = 'tcp://localhost:2375'
+    NEXUS_CREDS = credentials('nexus-login')
   }
 
   stages {
@@ -46,10 +49,26 @@ pipeline {
         bat 'docker images %IMAGE_NAME%'
       }
     }
+
+    stage('Push to Nexus') {
+      steps {
+        bat 'echo %NEXUS_CREDS_PSW%| docker login %REGISTRY% -u %NEXUS_CREDS_USR% --password-stdin'
+        bat 'docker tag %IMAGE_NAME%:latest %REGISTRY%/%IMAGE_NAME%:%BUILD_NUMBER%'
+        bat 'docker push %REGISTRY%/%IMAGE_NAME%:%BUILD_NUMBER%'
+        bat 'docker logout %REGISTRY%'
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        bat 'docker rm -f greet-service 2>nul & docker run -d --name greet-service ' +
+            '-p 8090:8080 %REGISTRY%/%IMAGE_NAME%:%BUILD_NUMBER%'
+      }
+    }
   }
 
   post {
-    success { echo "${APP_NAME}: pipeline finished successfully" }
-    failure { echo "${APP_NAME}: pipeline failed" }
+    success { echo 'Build, analysis, image push and deployment completed.' }
+    failure { echo 'Pipeline failed - check the stage logs.' }
   }
 }
