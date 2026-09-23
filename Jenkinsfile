@@ -1,7 +1,11 @@
 pipeline {
   agent any
   tools { maven 'Maven3' }
-  environment { APP_NAME = 'greet-service' }
+  environment {
+    APP_NAME    = 'greet-service'
+    IMAGE_NAME  = 'greet-service'
+    DOCKER_HOST = 'tcp://localhost:2375'
+  }
 
   stages {
     stage('Checkout') { steps { checkout scm } }
@@ -34,6 +38,13 @@ pipeline {
     stage('Package') {
       steps { bat 'mvn -B package -DskipTests' }
       post  { success { archiveArtifacts artifacts: 'target/*.jar', fingerprint: true } }
+    }
+
+    stage('Docker Build') {
+      steps {
+        bat 'docker build -t %IMAGE_NAME%:%BUILD_NUMBER% -t %IMAGE_NAME%:latest .'
+        bat 'docker images %IMAGE_NAME%'
+      }
     }
   }
 
